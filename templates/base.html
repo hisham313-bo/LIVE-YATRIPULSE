@@ -1,0 +1,78 @@
+<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>YatriPulse</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+Kannada:wght@400;600;700&family=Noto+Sans+Devanagari:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#1F2430;--amber:#F5B700;--paper:#F2F5F7;--card:rgba(255,255,255,.94);--line:#E3E8EC;--muted:#6B7683;--go:#1B7F5C;--stop:#C8442F;--r:14px}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Plus Jakarta Sans","Noto Sans Kannada","Noto Sans Devanagari",system-ui,sans-serif;color:var(--ink);background:var(--paper);display:flex;flex-direction:column;height:100vh;font-size:14px}
+header{background:var(--ink);color:#fff;padding:0 18px;height:54px;display:flex;justify-content:space-between;align-items:center;z-index:1100}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:19px;letter-spacing:-.3px}
+.brand i{width:30px;height:30px;border-radius:9px;background:var(--amber);display:grid;place-items:center;font-style:normal;font-size:17px}
+.nav{display:flex;align-items:center;gap:6px;font-size:13px;color:#C9D1D9}
+header a{color:#fff;margin-left:12px;text-decoration:none;font-weight:600;padding:6px 12px;border-radius:99px;background:rgba(255,255,255,.12)}
+header a:hover{background:rgba(255,255,255,.22)}
+header select{width:auto;margin:0;padding:5px 8px;border-radius:99px;background:rgba(255,255,255,.12);color:#fff;border:0}
+header select option{color:#000}
+main{flex:1;position:relative;min-height:0}
+#map{position:absolute;inset:0;background:#E8EEF1}
+aside{position:absolute;z-index:1000;left:14px;top:14px;bottom:14px;width:344px;padding:18px;overflow:auto;background:var(--card);backdrop-filter:blur(8px);border-radius:var(--r);box-shadow:0 8px 30px rgba(31,36,48,.18)}
+aside h3{margin:0 0 10px;font-size:18px;font-weight:800;letter-spacing:-.2px}
+aside h4{margin:14px 0 6px;font-size:14px}
+aside hr{border:0;border-top:1px solid var(--line);margin:16px 0}
+aside small,aside p{color:var(--muted);line-height:1.5}
+input,select,button{font:inherit;padding:10px 12px;margin:4px 0;width:100%;border-radius:10px}
+input,select{border:1.5px solid var(--line);background:#fff;color:var(--ink)}
+input:focus,select:focus,button:focus-visible,a:focus-visible{outline:3px solid rgba(245,183,0,.55);outline-offset:1px;border-color:var(--amber)}
+button{background:var(--ink);color:#fff;border:0;font-weight:700;cursor:pointer}
+button:hover{filter:brightness(1.2)}
+.item{padding:11px 12px;margin:6px 0;background:#fff;border:1px solid var(--line);border-left:4px solid var(--amber);border-radius:10px;line-height:1.5}
+.item a{color:var(--go);font-weight:600;text-decoration:none}
+.item a:hover{text-decoration:underline}
+.bt{background:none;border:0}
+.tag{position:absolute;transform:translate(-50%,-50%);background:var(--c);color:#fff;font-weight:800;font-size:12px;padding:4px 9px;border-radius:7px;border:2.5px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35);white-space:nowrap}
+.tag[data-s="Delayed"]{border-color:#F5B700}.tag[data-s="Bus full"]{border-color:#7A4FB5}.tag[data-s="Breakdown"]{border-color:#C8442F}
+.tag.off{outline:2px dashed var(--stop);outline-offset:2px}
+.tag.live::after{content:"";position:absolute;inset:-7px;border-radius:12px;border:2px solid var(--c);animation:p 2s ease-out infinite}
+@keyframes p{from{opacity:.8;transform:scale(.8)}to{opacity:0;transform:scale(1.35)}}
+@media(prefers-reduced-motion:reduce){.tag.live::after{animation:none;opacity:.4}}
+.leaflet-popup-content-wrapper{border-radius:12px;font-family:inherit}
+.leaflet-tooltip{border-radius:8px;font-family:inherit;font-weight:600}
+@media(max-width:700px){aside{left:8px;right:8px;top:auto;bottom:8px;width:auto;max-height:46%;padding:14px}.brand{font-size:17px}}
+.login{max-width:340px;margin:9vh auto;background:#fff;border-radius:18px;padding:30px;box-shadow:0 14px 44px rgba(31,36,48,.14)}
+.login h3{margin:0 0 4px;font-size:22px;font-weight:800}
+</style></head><body>
+<header><div class="brand"><i>🚌</i>YatriPulse</div><span class="nav">{% block nav %}{% endblock %}</span></header>
+<main>{% block body %}{% endblock %}</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+const COLORS=['#1B7F5C','#C8442F','#2D5BBA','#7A4FB5','#C77700','#0F8B9C','#B23A6B','#5B6770'];
+function mkMap(){const m=L.map('map',{zoomControl:false}).setView([22.5,79],5);L.control.zoom({position:'topright'}).addTo(m);
+ L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:19,attribution:'© OpenStreetMap © CARTO'}).addTo(m);return m}
+const busIcon=(c,m)=>L.divIcon({className:'bt',iconSize:[0,0],html:`<div class="tag ${m.live?'live':''} ${m.off?'off':''}" data-s="${m.status||''}" style="--c:${c}">${(m.number||'').replace(/^[A-Z]{2,4}-/,'')}</div>`});
+function liveMap(map){
+ const R={},B={},K={},meta={};let routes=[];
+ const color=id=>COLORS[id%COLORS.length];
+ function drawRoute(r){routes=routes.filter(x=>x.id!=r.id);routes.push(r);
+  if(R[r.id])map.removeLayer(R[r.id]);
+  const g=L.layerGroup(),pts=r.stops.map(s=>[s.lat,s.lng]);
+  L.polyline(pts,{color:color(r.id),weight:5,opacity:.85,lineCap:'round'}).addTo(g);
+  r.stops.forEach(s=>L.circleMarker([s.lat,s.lng],{radius:5,color:color(r.id),weight:2.5,fillColor:'#fff',fillOpacity:1}).bindTooltip(s.name).addTo(g));
+  g.addTo(map);R[r.id]=g;return pts}
+ function upd(b){if(b.lat==null)return;meta[b.id]=Object.assign(meta[b.id]||{},b);const m=meta[b.id];
+  const r=routes.find(x=>x.id==m.route_id);const txt=`<b>${m.number}</b><br>${r?r.name:''}<br>${Math.round(m.speed||0)} km/h · ${m.live?'LIVE GPS':'demo'}<br>Status: ${m.status||'On time'}${m.off?' ⚠ off route':''}`;
+  window.onBus&&onBus(m);if(B[b.id]){B[b.id].setLatLng([b.lat,b.lng]).setPopupContent(txt);const k=[m.status,m.off,m.live].join();if(K[b.id]!==k){K[b.id]=k;B[b.id].setIcon(busIcon(color(m.route_id),m))}}
+  else(K[b.id]=[m.status,m.off,m.live].join(),B[b.id]=L.marker([b.lat,b.lng],{icon:busIcon(color(m.route_id),m)}).bindPopup(txt).addTo(map))}
+ const s=io();
+ s.on('bus_update',upd);
+ s.on('route_added',r=>{const p=drawRoute(r);map.fitBounds(p,{padding:[40,40]});window.onRoutes&&onRoutes(routes)});
+ s.on('bus_added',b=>{meta[b.id]=b});
+ s.on('route_removed',d=>{if(R[d.id])map.removeLayer(R[d.id]);routes=routes.filter(x=>x.id!=d.id);window.onRoutes&&onRoutes(routes)});
+ Promise.all([fetch('/api/routes').then(r=>r.json()),fetch('/api/buses').then(r=>r.json())]).then(([rs,bs])=>{
+  rs.forEach(drawRoute);bs.forEach(b=>{meta[b.id]=b});bs.forEach(upd);window.onRoutes&&onRoutes(routes)});
+ return {buses:()=>meta,focus(id){const r=routes.find(x=>x.id==id);if(r)map.fitBounds(r.stops.map(s=>[s.lat,s.lng]),{padding:[40,40]})}}
+}
+</script>{% block script %}{% endblock %}</body></html>

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block nav %}{{bus.number}} · {{bus.rname}}<a href="/logout">Logout</a>{% endblock %}
+{% block body %}
+<aside><h3>Driver panel</h3><p>Bus <b>{{bus.number}}</b><br>Route: {{bus.rname}}</p>
+<button id="b" onclick="toggle()">▶ Start trip (share GPS)</button>
+<h4>Bus status (passengers see this)</h4>
+<button onclick="stat('On time')">✅ On time</button><button onclick="stat('Delayed')">⏱ Delayed</button>
+<button onclick="stat('Bus full')">🚫 Bus full</button><button onclick="stat('Breakdown')">🔧 Breakdown</button>
+<p id="st">Not sharing location</p><p id="q"></p></aside><div id="map"></div>{% endblock %}
+{% block script %}<script>
+const map=mkMap();liveMap(map);const sk=io();let wid=null,wl=null,buf=[];
+sk.on('connect',()=>{while(buf.length)sk.emit('driver_location',buf.shift());q.textContent=''});   // auto-resume + send saved points
+async function lock(){try{wl=await navigator.wakeLock.request('screen')}catch(e){}}                // keep screen awake
+document.addEventListener('visibilitychange',()=>{if(wid!==null&&document.visibilityState==='visible')lock()});
+function send(p){const d={lat:p.coords.latitude,lng:p.coords.longitude,speed:(p.coords.speed||0)*3.6,ts:Date.now()/1000};
+ if(sk.connected)sk.emit('driver_location',d);else{buf.push(d);if(buf.length>500)buf.shift();q.textContent='Offline – '+buf.length+' points saved, will send when back online'}
+ st.textContent='Live: '+d.lat.toFixed(5)+', '+d.lng.toFixed(5)}
+function stat(s){sk.emit('driver_status',{status:s});st.textContent='Status sent: '+s}
+function toggle(){
+ if(wid!==null){navigator.geolocation.clearWatch(wid);wid=null;wl&&wl.release();b.textContent='▶ Start trip (share GPS)';st.textContent='Trip ended';return}
+ if(!navigator.geolocation)return alert('GPS not supported');
+ wid=navigator.geolocation.watchPosition(send,e=>st.textContent='GPS error: '+e.message,{enableHighAccuracy:true,maximumAge:2000});
+ lock();b.textContent='⏹ End trip';
+}
+</script>{% endblock %}

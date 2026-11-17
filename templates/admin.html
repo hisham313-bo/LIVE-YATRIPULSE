@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block nav %}Admin<a href="/logout">Logout</a>{% endblock %}
+{% block body %}
+<aside>
+<h3>Add route</h3>
+<input id="rn" placeholder="Route name (e.g. NAG-11 Sitabuldi - Airport)">
+<input id="rc" placeholder="City">
+<small>Click the map to add stops in order. Anywhere in India.</small>
+<div id="stops"></div>
+<button onclick="save()">Save route</button>
+<button style="background:#6B7683" onclick="clr()">Clear</button>
+<hr><h3>Add bus + driver</h3>
+<input id="bn" placeholder="Bus number"><select id="br"></select>
+<input id="du" placeholder="Driver username"><input id="dp" placeholder="Driver password">
+<button onclick="addBus()">Add bus</button>
+<hr><h3>Dashboard</h3><div id="stats"></div><h3>Buses &amp; drivers</h3><div id="mgr"></div><a href="/api/admin/history.csv">⬇ All trip history (CSV, 24h)</a>
+<hr><h3>Routes</h3><div id="list"></div></aside><div id="map"></div>{% endblock %}
+{% block script %}<script>
+const map=mkMap(),lm=liveMap(map);let pts=[],mk=[],line=null;
+map.on('click',e=>{const n=prompt('Stop name:','Stop '+(pts.length+1));if(!n)return;
+ pts.push({name:n,lat:e.latlng.lat,lng:e.latlng.lng});mk.push(L.marker(e.latlng).addTo(map).bindTooltip(n));draw()});
+function draw(){if(line)map.removeLayer(line);line=L.polyline(pts.map(p=>[p.lat,p.lng]),{dashArray:'6'}).addTo(map);
+ stops.innerHTML=pts.map((p,i)=>`<div class="item">${i+1}. ${p.name}</div>`).join('')}
+function clr(){pts=[];mk.forEach(m=>map.removeLayer(m));mk=[];draw()}
+async function save(){const r=await fetch('/api/admin/routes',{method:'POST',headers:{'Content-Type':'application/json'},
+ body:JSON.stringify({name:rn.value,city:rc.value,stops:pts})});const d=await r.json();
+ if(d.error)return alert(d.error);clr();rn.value=rc.value=''}
+async function addBus(){const r=await fetch('/api/admin/buses',{method:'POST',headers:{'Content-Type':'application/json'},
+ body:JSON.stringify({number:bn.value,route_id:+br.value,driver_username:du.value,driver_password:dp.value})});
+ const d=await r.json();alert(d.error||'Bus added');}
+async function del(id){if(confirm('Delete route and its buses?'))await fetch('/api/admin/routes/'+id,{method:'DELETE'})}
+async function loadMgr(){const [b,s]=await Promise.all([fetch('/api/admin/buses').then(r=>r.json()),fetch('/api/admin/stats').then(r=>r.json())]);
+ stats.textContent=`Buses ${s.total} · Live ${s.live} · Offline ${s.total-s.live} · GPS points today ${s.points_today}`;
+ mgr.innerHTML=b.map(x=>`<div class="item"><b>${x.number}</b> · ${x.driver||'-'} ${x.active?'':'⛔ disabled'} ${x.off?'⚠ OFF ROUTE':''} ${x.status}<br>
+ <a href="#" onclick="rp(${x.id});return false">Reset password</a> · <a href="#" onclick="tg(${x.id});return false">${x.active?'Disable':'Enable'}</a> · <a href="/api/admin/history.csv?bus_id=${x.id}">CSV</a></div>`).join('')}
+async function rp(id){const p=prompt('New password (min 6 chars):');if(!p)return;const r=await (await fetch(`/api/admin/buses/${id}/password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:p})})).json();alert(r.error||'Password updated')}
+async function tg(id){await fetch(`/api/admin/buses/${id}/toggle`,{method:'POST'});loadMgr()}
+async function ren(id,n){const v=prompt('New route name:',n);if(v)await fetch('/api/admin/routes/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:v})})}
+loadMgr();setInterval(loadMgr,10000);
+window.onRoutes=rs=>{br.innerHTML=rs.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
+ list.innerHTML=rs.map(r=>`<div class="item"><b>${r.name}</b> (${r.city})<br><a href="#" onclick="lm.focus(${r.id});return false">View</a> · <a href="#" onclick="ren(${r.id},'${r.name.replace(/'/g,"")}');return false">Rename</a> · <a href="#" onclick="del(${r.id});return false">Delete</a></div>`).join('')}
+</script>{% endblock %}

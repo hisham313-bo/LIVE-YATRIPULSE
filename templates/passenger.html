@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block nav %}<select id="lang" onchange="setLang()" style="width:auto;padding:3px"><option value="en">English</option><option value="kn">ಕನ್ನಡ</option><option value="hi">हिन्दी</option></select><a href="/login" id="t_login">Login</a>{% endblock %}
+{% block body %}
+<aside><h3 id="t_find">Find your bus</h3>
+<input id="q" placeholder="Search route, city or stop...">
+<input id="sf" list="stl" placeholder="From stop"><input id="sto" list="stl" placeholder="To stop"><datalist id="stl"></datalist>
+<button id="t_near" onclick="nearest()">📍 Nearest stop &amp; bus</button>
+<button id="t_alert" onclick="alertMe()" style="background:var(--go)">🔔 Alert me (2 stops away)</button>
+<p id="msg" style="font-size:14px"></p><div id="list"></div></aside><div id="map"></div>{% endblock %}
+{% block script %}<script>
+const T={en:{find:'Find your bus',q:'Search route, city or stop...',from:'From stop',to:'To stop',near:'📍 Nearest stop & bus',alert:'🔔 Alert me (2 stops away)',login:'Login'},
+kn:{find:'ನಿಮ್ಮ ಬಸ್ ಹುಡುಕಿ',q:'ಮಾರ್ಗ, ನಗರ ಅಥವಾ ನಿಲ್ದಾಣ ಹುಡುಕಿ...',from:'ಇಲ್ಲಿಂದ (ನಿಲ್ದಾಣ)',to:'ಇಲ್ಲಿಗೆ (ನಿಲ್ದಾಣ)',near:'📍 ಹತ್ತಿರದ ನಿಲ್ದಾಣ ಮತ್ತು ಬಸ್',alert:'🔔 ಎಚ್ಚರಿಕೆ (2 ನಿಲ್ದಾಣ ಬಾಕಿ)',login:'ಲಾಗಿನ್'},
+hi:{find:'अपनी बस खोजें',q:'रूट, शहर या स्टॉप खोजें...',from:'यहाँ से (स्टॉप)',to:'यहाँ तक (स्टॉप)',near:'📍 नज़दीकी स्टॉप और बस',alert:'🔔 अलर्ट (2 स्टॉप दूर)',login:'लॉगिन'}};
+function setLang(){const t=T[lang.value];t_find.textContent=t.find;q.placeholder=t.q;sf.placeholder=t.from;sto.placeholder=t.to;t_near.textContent=t.near;t_alert.textContent=t.alert;t_login.textContent=t.login;try{localStorage.setItem('lang',lang.value)}catch(e){}}
+try{lang.value=localStorage.getItem('lang')||'en'}catch(e){};setLang();
+const map=mkMap(),lm=liveMap(map);let all=[],target=null,notified={};
+const has=(r,n)=>n&&r.stops.some(s=>s.name.toLowerCase().includes(n.toLowerCase()));
+function render(){const v=q.value.toLowerCase();
+ list.innerHTML=all.filter(r=>(r.name+r.city+r.stops.map(s=>s.name).join()).toLowerCase().includes(v)&&(!sf.value||has(r,sf.value))&&(!sto.value||has(r,sto.value)))
+  .map(r=>`<div class="item" style="cursor:pointer" onclick="lm.focus(${r.id})"><b>${r.name}</b><br>${r.city} · ${r.stops.length} stops</div>`).join('')||'<div class="item">No bus found</div>'}
+window.onRoutes=r=>{all=r;stl.innerHTML=[...new Set(r.flatMap(x=>x.stops.map(s=>s.name)))].map(n=>`<option value="${n}">`).join('');render()};
+q.oninput=sf.oninput=sto.oninput=render;
+const hav=(a,b,c,d)=>{const R=6371,p=Math.PI/180,x=Math.sin((c-a)*p/2)**2+Math.cos(a*p)*Math.cos(c*p)*Math.sin((d-b)*p/2)**2;return 2*R*Math.asin(Math.sqrt(x))};
+function nearest(){if(!navigator.geolocation)return msg.textContent='Location not supported';
+ navigator.geolocation.getCurrentPosition(p=>{const {latitude:la,longitude:lo}=p.coords;let bs=null,bb=null;
+  all.forEach(r=>r.stops.forEach(s=>{const d=hav(la,lo,s.lat,s.lng);if(!bs||d<bs.d)bs={d,n:s.name,r:r.name,lat:s.lat,lng:s.lng}}));
+  Object.values(lm.buses()).forEach(b=>{if(b.lat==null)return;const d=hav(la,lo,b.lat,b.lng);if(!bb||d<bb.d)bb={d,n:b.number}});
+  msg.textContent=(bs?`Nearest stop: ${bs.n} (${Math.round(bs.d*1000)} m, ${bs.r}). `:'')+(bb?`Nearest bus: ${bb.n} (${bb.d.toFixed(1)} km).`:'');
+  L.circleMarker([la,lo],{radius:8,color:'#0d47a1'}).addTo(map).bindTooltip('You');if(bs)map.setView([bs.lat,bs.lng],14)},e=>msg.textContent='Location error: '+e.message)}
+function alertMe(){if(!sf.value)return msg.textContent='Type your stop in "From stop" first';
+ if('Notification' in window)Notification.requestPermission();target=sf.value;notified={};msg.textContent='Alert set for stop: '+target}
+window.onBus=m=>{if(!target||m.lat==null)return;const r=all.find(x=>x.id==m.route_id);if(!r||!has(r,target))return;
+ const ti=r.stops.findIndex(s=>s.name.toLowerCase().includes(target.toLowerCase()));
+ let bi=0,bd=1e9;r.stops.forEach((s,i)=>{const d=hav(m.lat,m.lng,s.lat,s.lng);if(d<bd){bd=d;bi=i}});
+ if(Math.abs(ti-bi)<=2&&!notified[m.id]){notified[m.id]=1;const t=`Bus ${m.number} is ${Math.abs(ti-bi)} stop(s) away from ${target}`;msg.textContent='🔔 '+t;
+  if('Notification' in window&&Notification.permission==='granted')new Notification('YatriPulse',{body:t})}
+ if(Math.abs(ti-bi)>2)notified[m.id]=0}
+</script>{% endblock %}
