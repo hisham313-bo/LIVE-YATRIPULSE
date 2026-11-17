@@ -51,7 +51,7 @@ button:hover{filter:brightness(1.2)}
 <script>
 const COLORS=['#1B7F5C','#C8442F','#2D5BBA','#7A4FB5','#C77700','#0F8B9C','#B23A6B','#5B6770'];
 function mkMap(){const m=L.map('map',{zoomControl:false}).setView([22.5,79],5);L.control.zoom({position:'topright'}).addTo(m);
- L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:19,attribution:'© OpenStreetMap © CARTO'}).addTo(m);return m}
+ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(m);return m}
 const busIcon=(c,m)=>L.divIcon({className:'bt',iconSize:[0,0],html:`<div class="tag ${m.live?'live':''} ${m.off?'off':''}" data-s="${m.status||''}" style="--c:${c}">${(m.number||'').replace(/^[A-Z]{2,4}-/,'')}</div>`});
 function liveMap(map){
  const R={},B={},K={},meta={};let routes=[];
